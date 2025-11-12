@@ -1,0 +1,4 @@
+# Celda 2: carga del dataset AI4I 2020 (ajusta la ruta)
+# Supongo que tienes un CSV llamado 'AI4I_dataset.csv' con columna 'Machine failure'
+df = pd.read_csv('AI4I_dataset.csv')  # ajusta el nombre/ruta
+df.head()
