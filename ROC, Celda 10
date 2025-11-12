@@ -1,0 +1,16 @@
+# Celda 10: graficar ROC promedio (opcional, ejemplo para el modelo KDE_gaussian_grid)
+# Aquí mostramos una fold como ejemplo; para curva promedio hay que interpolar varias curvas.
+# Tomaremos la primera fold del CV como ilustración:
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+train_idx, test_idx = next(iter(skf.split(X_arr, y_arr)))
+kde_g.fit(X_arr[train_idx], y_arr[train_idx])
+probs = kde_g.predict_proba(X_arr[test_idx])
+pos_idx = int(np.where(kde_g.classes_ == 1)[0][0])
+fpr, tpr, _ = roc_curve(y_arr[test_idx], probs[:, pos_idx])
+plt.plot(fpr, tpr, label='KDE gaussian (ejemplo fold)')
+plt.plot([0,1],[0,1],'k--')
+plt.xlabel('FPR')
+plt.ylabel('TPR')
+plt.title('ROC example')
+plt.legend()
+plt.show()
