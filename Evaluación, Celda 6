@@ -1,0 +1,27 @@
+# Celda 6: función de evaluación cross-val (Stratified KFold)
+def evaluate_model(model, X, y, cv=5):
+    skf = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
+    aucs = []
+    times = []
+    for train_idx, test_idx in skf.split(X, y):
+        Xtr, Xte = X[train_idx], X[test_idx]
+        ytr, yte = y[train_idx], y[test_idx]
+
+        start = time()
+        model.fit(Xtr, ytr)
+        probs = model.predict_proba(Xte)  # matrix n_test x n_classes
+        # obtener prob de la clase positiva (suponiendo clases = [0,1] o similar)
+        # encontrar índice de la clase positiva (1)
+        classes = model.classes_
+        if 1 in classes:
+            pos_idx = int(np.where(classes == 1)[0][0])
+        else:
+            pos_idx = -1  # si no hay 1 (poco probable)
+        yscore = probs[:, pos_idx]
+        elapsed = time() - start
+        times.append(elapsed)
+
+        auc = roc_auc_score(yte, yscore)
+        aucs.append(auc)
+
+    return {'auc_mean': np.mean(aucs), 'auc_std': np.std(aucs), 'time_mean': np.mean(times)}
