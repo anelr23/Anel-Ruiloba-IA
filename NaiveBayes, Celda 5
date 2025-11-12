@@ -1,0 +1,111 @@
+# Celda 5: clase NaiveBayesKDE
+class NaiveBayesKDE:
+    """
+    Implementación de Naive Bayes no paramétrico usando KDE por característica y por clase.
+    modos:
+      - 'gaussian_grid': KDE con kernel='gaussian' y bandwidth elegido por GridSearch (log-likelihood)
+      - 'parzen_tophat': KDE con kernel='tophat' y bandwidth fijo (h fijo o heurístico)
+      - 'silverman': KDE con kernel='gaussian' y bandwidth por regla de Silverman (por feature+clase)
+    """
+
+    def __init__(self, mode='gaussian_grid', grid_bw=None, parzen_h=0.5):
+        self.mode = mode
+        self.grid_bw = grid_bw if grid_bw is not None else np.logspace(-2, 1, 10)
+        self.parzen_h = parzen_h
+        self.kdes = {}  # dict: (feature, class) -> KDE object
+        self.priors = {}  # class -> prior prob
+
+    def fit(self, X, y, cv_for_bw=3):
+        """
+        X: DataFrame o ndarray (n_samples, n_features)
+        y: array-like
+        cv_for_bw: número de folds para búsqueda de bandwidth (solo para gaussian_grid)
+        """
+        X = np.asarray(X)
+        y = np.asarray(y)
+        self.features_ = list(range(X.shape[1]))
+        classes, counts = np.unique(y, return_counts=True)
+        n = len(y)
+        self.priors = {c: counts[i] / n for i, c in enumerate(classes)}
+
+        # Para cada feature y cada clase, estimar un KDE
+        for fi in self.features_:
+            for c in classes:
+                xi = X[y == c, fi].reshape(-1, 1)
+                # small regularization: if too few samples, add jitter
+                if xi.shape[0] < 2:
+                    xi = np.concatenate([xi, xi + 1e-6])
+
+                if self.mode == 'gaussian_grid':
+                    # Selección de bandwidth por log-likelihood usando GridSearch sobre KernelDensity
+                    best_bw = None
+                    best_score = -np.inf
+                    # usar splits dentro de la propia muestra de la clase (cv_for_bw)
+                    from sklearn.model_selection import KFold
+                    kf = KFold(n_splits=min(cv_for_bw, xi.shape[0]))
+                    for bw in self.grid_bw:
+                        scores = []
+                        for train_idx, test_idx in kf.split(xi):
+                            kd = KernelDensity(kernel='gaussian', bandwidth=bw).fit(xi[train_idx])
+                            scores.append(kd.score(xi[test_idx]).mean())
+                        mean_score = np.mean(scores)
+                        if mean_score > best_score:
+                            best_score = mean_score
+                            best_bw = bw
+                    kde = KernelDensity(kernel='gaussian', bandwidth=best_bw).fit(xi)
+                    self.kdes[(fi, c)] = kde
+
+                elif self.mode == 'parzen_tophat':
+                    # Parzen: usar kernel='tophat' con parzen_h (ancho de ventana)
+                    kde = KernelDensity(kernel='tophat', bandwidth=self.parzen_h).fit(xi)
+                    self.kdes[(fi, c)] = kde
+
+                elif self.mode == 'silverman':
+                    bw = silverman_bandwidth(xi.flatten())
+                    # protección si sigma es 0
+                    if bw == 0 or np.isnan(bw):
+                        bw = 1e-3
+                    kde = KernelDensity(kernel='gaussian', bandwidth=bw).fit(xi)
+                    self.kdes[(fi, c)] = kde
+
+                else:
+                    raise ValueError("mode desconocido")
+
+        self.classes_ = classes
+        return self
+
+    def _log_likelihood_feature(self, fi, x_values):
+        """
+        devuelve matriz (n_samples, n_classes) con log p(x_feature | class)
+        """
+        Xq = np.array(x_values).reshape(-1, 1)
+        out = np.zeros((Xq.shape[0], len(self.classes_)))
+        for j, c in enumerate(self.classes_):
+            kd = self.kdes[(fi, c)]
+            # score_samples da log density
+            out[:, j] = kd.score_samples(Xq)
+        return out  # shape n_samples x n_classes
+
+    def predict_proba(self, X):
+        X = np.asarray(X)
+        n_samples = X.shape[0]
+        log_post = np.zeros((n_samples, len(self.classes_)))  # log P(y) + sum_i log p(x_i|y)
+        for j, c in enumerate(self.classes_):
+            log_post[:, j] = np.log(self.priors[c] + 1e-12)
+
+        for fi in self.features_:
+            ll = self._log_likelihood_feature(fi, X[:, fi])  # n x n_classes
+            log_post += ll
+
+        # para probas normalizamos via log-suma-exp
+        a = log_post
+        # restar máximo por fila para estabilidad
+        a_max = np.max(a, axis=1, keepdims=True)
+        expa = np.exp(a - a_max)
+        probs = expa / np.sum(expa, axis=1, keepdims=True)
+        return probs  # columns en orden de self.classes_
+
+    def predict(self, X):
+        probs = self.predict_proba(X)
+        idx = np.argmax(probs, axis=1)
+        return self.classes_[idx]
