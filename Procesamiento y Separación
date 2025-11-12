@@ -1,0 +1,20 @@
+# Celda 3: preprocesamiento básico y separación X,y
+# Ajusta según las columnas reales del dataset: elimina columnas irrelevantes, timestamps, ids, etc.
+target_col = 'Machine failure'  # nombre objetivo
+# Elimina columnas no numéricas irrelevantes si las hubiera (ejemplo: 'UID' o 'Type')
+# df = df.drop(columns=['UID','Type'], errors='ignore')
+
+# Opcional: eliminar columnas con varianza casi 0
+nunique = df.nunique()
+low_var_cols = nunique[nunique <= 1].index.tolist()
+df = df.drop(columns=low_var_cols)
+
+# Separar
+X = df.drop(columns=[target_col])
+y = df[target_col].astype(int)
+
+# Lista de características numéricas (si hay categóricas deberías codificarlas)
+num_features = X.select_dtypes(include=[np.number]).columns.tolist()
+X = X[num_features]
+
+print("Características usadas:", len(num_features))
