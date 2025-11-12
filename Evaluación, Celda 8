@@ -1,0 +1,41 @@
+# Celda 8: evaluación de modelos
+results = {}
+
+# 1) GaussianNB (baseline)
+gnb = GaussianNB()
+# adaptamos una pequeña envoltura para que tenga predict_proba y classes_ compatibles
+class GNBWrapper:
+    def __init__(self, gnb):
+        self.gnb = gnb
+    def fit(self, X, y):
+        self.gnb.fit(X, y)
+        self.classes_ = self.gnb.classes_
+        return self
+    def predict_proba(self, X):
+        return self.gnb.predict_proba(X)
+    def predict(self, X):
+        return self.gnb.predict(X)
+
+baseline = GNBWrapper(gnb)
+res = evaluate_model(baseline, X_arr, y_arr, cv=5)
+results['GaussianNB'] = res
+print("GaussianNB:", res)
+
+# 2) KDE - gaussian con búsqueda de bandwidth (más costoso)
+kde_g = NaiveBayesKDE(mode='gaussian_grid', grid_bw=np.logspace(-2, 0, 8))
+res = evaluate_model(kde_g, X_arr, y_arr, cv=5)
+results['KDE_gaussian_grid'] = res
+print("KDE gaussian grid:", res)
+
+# 3) KDE Parzen tophat (h fijo) - prueba con h como percentil del rango
+h_guess = 0.5  # puedes experimentar con 0.1, 0.5, 1.0
+kde_parzen = NaiveBayesKDE(mode='parzen_tophat', parzen_h=h_guess)
+res = evaluate_model(kde_parzen, X_arr, y_arr, cv=5)
+results['KDE_parzen_tophat'] = res
+print("KDE parzen tophat (h={}):".format(h_guess), res)
+
+# 4) KDE con Silverman
+kde_silv = NaiveBayesKDE(mode='silverman')
+res = evaluate_model(kde_silv, X_arr, y_arr, cv=5)
+results['KDE_silverman'] = res
+print("KDE silverman:", res)
