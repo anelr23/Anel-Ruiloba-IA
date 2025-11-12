@@ -1,0 +1,6 @@
+# Celda 7: preprocesamiento antes de entrenar
+# Recomiendo estandarizar las features si las escalas varían mucho (KDE con gaussian kernel no requiere estrictamente, pero mejora estabilidad)
+scaler = StandardScaler()
+Xs = scaler.fit_transform(X.values)
+X_arr = Xs
+y_arr = y.values
