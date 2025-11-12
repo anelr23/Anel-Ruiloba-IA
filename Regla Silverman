@@ -1,0 +1,6 @@
+# Celda 4: funciones auxiliares - regla de Silverman
+def silverman_bandwidth(x):
+    x = np.asarray(x)
+    n = x.size
+    sigma = np.std(x, ddof=1)
+    return 1.06 * sigma * n ** (-1/5)
